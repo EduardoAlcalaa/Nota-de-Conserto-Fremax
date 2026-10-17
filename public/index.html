@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Controle de Notas de Conserto</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="topbar-title">
+      <span class="topbar-mark">NC</span>
+      <div>
+        <h1>Controle de Notas de Conserto</h1>
+        <p class="fluxo-subtitulo">
+          <span class="step-chip">1. Orçamento</span> &rarr;
+          <span class="step-chip">2. RC</span> &rarr;
+          <span class="step-chip">3. Pedido</span> &rarr;
+          <span class="step-chip">4. Conserto</span> &rarr;
+          <span class="step-chip">5. Entrega</span>
+        </p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <div class="search-box">
+        <input id="busca-global" type="text" placeholder="Buscar por NF, RC, PC, fornecedor ou item..." />
+      </div>
+      <button id="btn-gerenciar-fornecedores" class="btn btn-secundario">
+        <span>🏢</span> Fornecedores <span id="badge-total-fornecedores" class="pill-badge">0</span>
+      </button>
+      <button id="btn-exportar-csv" class="btn btn-secundario" title="Exportar lista filtrada para CSV / Excel">
+        <span>📥</span> Exportar CSV
+      </button>
+      <button id="btn-nova-nota" class="btn btn-primary">
+        <span>+</span> Nova Nota de Conserto
+      </button>
+    </div>
+  </header>
+
+  <!-- Barra de Indicadores (KPIs) -->
+  <section class="resumo-bar" id="resumo-bar">
+    <!-- Preenchido via JavaScript -->
+  </section>
+
+  <!-- Abas por Etapa do Fluxo -->
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-status="">Todas <span class="tab-badge" id="tab-cnt-todas">0</span></button>
+    <button class="tab" data-status="orcamento_enviado">1. Aguardando RC <span class="tab-badge" id="tab-cnt-orcamento">0</span></button>
+    <button class="tab" data-status="rc_criada">2. RC criada <span class="tab-badge" id="tab-cnt-rc">0</span></button>
+    <button class="tab" data-status="pc_criado">3. Pedido criado <span class="tab-badge" id="tab-cnt-pc">0</span></button>
+    <button class="tab" data-status="em_conserto">4. Em conserto <span class="tab-badge" id="tab-cnt-conserto">0</span></button>
+    <button class="tab" data-status="entregue">5. Entregue <span class="tab-badge" id="tab-cnt-entregue">0</span></button>
+  </nav>
+
+  <!-- Layout Principal -->
+  <main class="filtros-e-lista">
+    <aside class="filtros">
+      <div class="filtros-header">
+        <h3>Filtros</h3>
+        <button id="btn-limpar-filtros" class="btn-link" type="button">Limpar</button>
+      </div>
+
+      <label for="filtro-fornecedor">Fornecedor</label>
+      <select id="filtro-fornecedor">
+        <option value="">Todos os fornecedores</option>
+      </select>
+
+      <label for="filtro-situacao">Situação da etapa</label>
+      <select id="filtro-situacao">
+        <option value="">Todas as situações</option>
+        <option value="atrasado">⚠️ Apenas Atrasadas na Etapa</option>
+        <option value="no_prazo">✅ No Prazo</option>
+      </select>
+
+      <label for="filtro-urgencia">Nível de urgência global</label>
+      <select id="filtro-urgencia">
+        <option value="">Todos os níveis</option>
+        <option value="normal">Normal (&lt; 4 meses)</option>
+        <option value="atencao">Atenção (4 meses)</option>
+        <option value="urgente">Urgente (5 meses)</option>
+        <option value="multa">Multa (6+ meses)</option>
+      </select>
+
+      <div class="legenda">
+        <p class="legenda-titulo">Legenda de Prazos Globais</p>
+        <ul>
+          <li><span class="dot dot-normal"></span> Normal — até 3 meses</li>
+          <li><span class="dot dot-atencao"></span> Atenção — 4 meses</li>
+          <li><span class="dot dot-urgente"></span> Urgente — 5 meses</li>
+          <li><span class="dot dot-multa"></span> Multa — 6+ meses</li>
+        </ul>
+      </div>
+
+      <div class="legenda-etapas">
+        <p class="legenda-titulo">Prazos Padrão por Etapa</p>
+        <div class="regra-item"><strong>Criação da RC:</strong> até 30 dias</div>
+        <div class="regra-item"><strong>Pedido Compras:</strong> até 15 dias</div>
+        <div class="regra-item"><strong>Envio p/ Conserto:</strong> até 10 dias</div>
+        <div class="regra-item"><strong>Conserto Fornecedor:</strong> até 45 dias</div>
+      </div>
+    </aside>
+
+    <section class="lista-container">
+      <div class="lista-header">
+        <span id="contador-resultados">Carregando notas...</span>
+      </div>
+      <div class="lista" id="lista-notas">
+        <!-- Cards das notas renderizados via JS -->
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal: Nova Nota de Conserto -->
+  <div class="modal-overlay" id="modal-nova-nota">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Nova Nota de Conserto</h2>
+        <button class="modal-fechar" data-fechar="modal-nova-nota">&times;</button>
+      </div>
+      <form id="form-nova-nota">
+        <div class="form-row">
+          <div class="form-col">
+            <label>Número da NF *</label>
+            <input type="text" name="numero_nf" placeholder="Ex: NF-1050" required />
+          </div>
+          <div class="form-col">
+            <label>Data de Emissão / Orçamento *</label>
+            <input type="date" name="data_orcamento" id="nova-nota-data-orcamento" required />
+          </div>
+        </div>
+
+        <div class="form-group-fornecedor">
+          <div class="fornecedor-select-wrapper">
+            <label>Fornecedor *</label>
+            <select name="fornecedor_id" id="select-fornecedor-form" required></select>
+          </div>
+          <button type="button" id="btn-atalho-novo-fornecedor" class="btn btn-secundario btn-atalho" title="Cadastrar novo fornecedor agora">
+            + Novo
+          </button>
+        </div>
+
+        <label>Descrição do Item / Equipamento *</label>
+        <textarea name="descricao" rows="2" placeholder="Ex: Conserto e retífica de motor redutor WEG 10CV linha 2" required></textarea>
+
+        <div class="form-row">
+          <div class="form-col">
+            <label>Valor do Orçamento (R$)</label>
+            <input type="number" step="0.01" name="valor_orcamento" placeholder="0,00" />
+          </div>
+          <div class="form-col">
+            <label>Responsável pela Emissão</label>
+            <input type="text" name="responsavel_emissao" value="Elton" />
+          </div>
+        </div>
+
+        <div class="modal-acoes">
+          <button type="button" class="btn btn-secundario" data-fechar="modal-nova-nota">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Criar Nota</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Avançar / Atualizar Status -->
+  <div class="modal-overlay" id="modal-editar-status">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Avançar Etapa do Fluxo</h2>
+        <button class="modal-fechar" data-fechar="modal-editar-status">&times;</button>
+      </div>
+      <div id="detalhe-nota-atual" class="detalhe-nota"></div>
+      <form id="form-editar-status">
+        <input type="hidden" name="nota_id" />
+
+        <label>Nova Etapa *</label>
+        <select name="novoStatus" id="select-novo-status" required></select>
+
+        <div id="campos-extra-status">
+          <!-- Renderizado dinamicamente de acordo com a etapa -->
+        </div>
+
+        <label>Responsável por esta ação</label>
+        <input type="text" name="responsavel" id="input-responsavel-status" placeholder="Ex: Eduardo, Ketlyn, Compras..." />
+
+        <label>Observação / Justificativa</label>
+        <textarea name="observacao" rows="2" placeholder="Registre detalhes desta etapa para o histórico de auditoria..."></textarea>
+
+        <div class="modal-acoes">
+          <button type="button" class="btn btn-secundario" data-fechar="modal-editar-status">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Confirmar e Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Editar Dados Gerais da Nota -->
+  <div class="modal-overlay" id="modal-editar-nota">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Editar Informações da Nota</h2>
+        <button class="modal-fechar" data-fechar="modal-editar-nota">&times;</button>
+      </div>
+      <form id="form-editar-nota">
+        <input type="hidden" name="id" id="edit-nota-id" />
+
+        <div class="form-row">
+          <div class="form-col">
+            <label>Número da NF *</label>
+            <input type="text" name="numero_nf" id="edit-numero-nf" required />
+          </div>
+          <div class="form-col">
+            <label>Data Orçamento / Início *</label>
+            <input type="date" name="data_orcamento" id="edit-data-orcamento" required />
+          </div>
+        </div>
+
+        <label>Fornecedor *</label>
+        <select name="fornecedor_id" id="edit-fornecedor-id" required></select>
+
+        <label>Descrição do Item</label>
+        <textarea name="descricao" id="edit-descricao" rows="2"></textarea>
+
+        <div class="form-row">
+          <div class="form-col">
+            <label>Valor Orçamento (R$)</label>
+            <input type="number" step="0.01" name="valor_orcamento" id="edit-valor-orcamento" />
+          </div>
+          <div class="form-col">
+            <label>Responsável Emissão</label>
+            <input type="text" name="responsavel_emissao" id="edit-responsavel-emissao" />
+          </div>
+        </div>
+
+        <div class="divider-form"></div>
+        <p class="section-subtitle">Documentos Registrados</p>
+
+        <div class="form-row">
+          <div class="form-col">
+            <label>Nº RC</label>
+            <input type="text" name="numero_rc" id="edit-numero-rc" />
+          </div>
+          <div class="form-col">
+            <label>Nº Pedido (PC)</label>
+            <input type="text" name="numero_pc" id="edit-numero-pc" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-col">
+            <label>Previsão de Entrega</label>
+            <input type="date" name="previsao_entrega" id="edit-previsao-entrega" />
+          </div>
+          <div class="form-col">
+            <label>NF Retorno</label>
+            <input type="text" name="nf_retorno" id="edit-nf-retorno" />
+          </div>
+        </div>
+
+        <div class="modal-acoes">
+          <button type="button" class="btn btn-perigo" id="btn-excluir-nota">Excluir Nota</button>
+          <div style="flex:1"></div>
+          <button type="button" class="btn btn-secundario" data-fechar="modal-editar-nota">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Detalhes da Nota com Timeline -->
+  <div class="modal-overlay" id="modal-detalhes-nota">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <div class="detalhes-header-title">
+          <h2 id="detalhes-titulo">NF-0000</h2>
+          <span id="detalhes-badge-etapa" class="badge-etapa">Etapa</span>
+          <span id="detalhes-badge-urgencia" class="badge-urgencia">Urgência</span>
+        </div>
+        <button class="modal-fechar" data-fechar="modal-detalhes-nota">&times;</button>
+      </div>
+
+      <div class="detalhes-corpo">
+        <!-- Cartão de Informações Principais -->
+        <div class="detalhes-cards-grid">
+          <div class="detalhe-card">
+            <span class="detalhe-card-rotulo">Fornecedor</span>
+            <span class="detalhe-card-valor" id="detalhes-fornecedor">—</span>
+          </div>
+          <div class="detalhe-card">
+            <span class="detalhe-card-rotulo">Valor Orçamento</span>
+            <span class="detalhe-card-valor destaque-valor" id="detalhes-valor">—</span>
+          </div>
+          <div class="detalhe-card">
+            <span class="detalhe-card-rotulo">Tempo em Aberto</span>
+            <span class="detalhe-card-valor" id="detalhes-dias">—</span>
+          </div>
+          <div class="detalhe-card">
+            <span class="detalhe-card-rotulo">Prazo da Etapa Atual</span>
+            <span class="detalhe-card-valor" id="detalhes-prazo-etapa">—</span>
+          </div>
+        </div>
+
+        <div class="detalhes-descricao-bloco">
+          <strong>Descrição do Material / Serviço:</strong>
+          <p id="detalhes-descricao">—</p>
+        </div>
+
+        <!-- Linha do Tempo Visual das 5 Etapas -->
+        <div class="timeline-container">
+          <h3>Linha do Tempo do Fluxo</h3>
+          <div class="stepper" id="timeline-stepper">
+            <!-- Gerado via JavaScript -->
+          </div>
+        </div>
+
+        <!-- Histórico de Auditoria -->
+        <div class="historico-container">
+          <h3>Histórico de Alterações e Auditoria</h3>
+          <div class="historico-lista" id="timeline-historico">
+            <!-- Gerado via JavaScript -->
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-acoes">
+        <button type="button" class="btn btn-secundario" data-fechar="modal-detalhes-nota">Fechar</button>
+        <button type="button" class="btn btn-primary" id="btn-detalhes-avancar">Avançar Etapa</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Gerenciamento de Fornecedores -->
+  <div class="modal-overlay" id="modal-fornecedores">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <div>
+          <h2>Fornecedores Cadastrados</h2>
+          <p class="modal-subtitulo">Gerencie os parceiros e prestadores de conserto da empresa</p>
+        </div>
+        <button class="modal-fechar" data-fechar="modal-fornecedores">&times;</button>
+      </div>
+
+      <div class="fornecedores-toolbar">
+        <input type="text" id="busca-fornecedor-lista" placeholder="Buscar por nome, CNPJ ou contato..." />
+        <button type="button" id="btn-cadastrar-novo-fornecedor" class="btn btn-primary">
+          + Novo Fornecedor
+        </button>
+      </div>
+
+      <div class="tabela-container">
+        <table class="tabela-fornecedores">
+          <thead>
+            <tr>
+              <th>Nome / Razão Social</th>
+              <th>CNPJ</th>
+              <th>Contato / Responsável</th>
+              <th>Telefone / E-mail</th>
+              <th>Notas Ativas</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="corpo-tabela-fornecedores">
+            <!-- Preenchido via JavaScript -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="modal-acoes">
+        <button type="button" class="btn btn-secundario" data-fechar="modal-fornecedores">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Formulário de Fornecedor (Criar / Editar) -->
+  <div class="modal-overlay" id="modal-form-fornecedor">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="titulo-form-fornecedor">Cadastrar Fornecedor</h2>
+        <button class="modal-fechar" data-fechar="modal-form-fornecedor">&times;</button>
+      </div>
+      <form id="form-fornecedor">
+        <input type="hidden" name="id" id="fornecedor-id" />
+
+        <label>Nome / Razão Social *</label>
+        <input type="text" name="nome" id="fornecedor-nome" placeholder="Ex: Metalúrgica Sul Ltda" required />
+
+        <div class="form-row">
+          <div class="form-col">
+            <label>CNPJ</label>
+            <input type="text" name="cnpj" id="fornecedor-cnpj" placeholder="00.000.000/0000-00" />
+          </div>
+          <div class="form-col">
+            <label>Cidade / UF</label>
+            <input type="text" name="cidade_uf" id="fornecedor-cidade" placeholder="Ex: São Paulo - SP" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-col">
+            <label>Nome do Contato</label>
+            <input type="text" name="contato_nome" id="fornecedor-contato-nome" placeholder="Ex: João Pereira" />
+          </div>
+          <div class="form-col">
+            <label>Telefone / WhatsApp</label>
+            <input type="text" name="contato_telefone" id="fornecedor-contato-telefone" placeholder="(00) 00000-0000" />
+          </div>
+        </div>
+
+        <label>E-mail de Contato</label>
+        <input type="email" name="contato_email" id="fornecedor-contato-email" placeholder="contato@fornecedor.com.br" />
+
+        <label>Observações / Especialidade</label>
+        <textarea name="observacoes" id="fornecedor-observacoes" rows="2" placeholder="Ex: Especializado em usinagem e rebobinamento de motores..."></textarea>
+
+        <div class="modal-acoes">
+          <button type="button" class="btn btn-secundario" data-fechar="modal-form-fornecedor">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="btn-salvar-fornecedor">Salvar Fornecedor</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Card Rápido de Contato do Fornecedor -->
+  <div class="modal-overlay" id="modal-contato-fornecedor">
+    <div class="modal" style="max-width: 420px;">
+      <div class="modal-header">
+        <h2 id="contato-card-nome">Fornecedor</h2>
+        <button class="modal-fechar" data-fechar="modal-contato-fornecedor">&times;</button>
+      </div>
+      <div class="contato-card-body" id="contato-card-conteudo">
+        <!-- Preenchido via JS -->
+      </div>
+      <div class="modal-acoes">
+        <button type="button" class="btn btn-secundario" data-fechar="modal-contato-fornecedor">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Container de Notificações Toast -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
